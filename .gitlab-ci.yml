@@ -23,7 +23,6 @@ stages: # List of stages for jobs, and their order of execution
     - apt-get update -y && apt-get install -y git libzip-dev
     - docker-php-ext-install zip
     - |
-      set -e
       echo "Installing composer..."
       set -e
       EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
