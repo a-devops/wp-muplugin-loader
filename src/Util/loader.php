@@ -9,6 +9,8 @@
 
 namespace LkWdwrd\MuPluginLoader\Util;
 
+use JsonException;
+
 /**
  * The main loader method to get available Must-Use plugins and require them.
  *
@@ -93,7 +95,7 @@ function get_muplugins(string $abs = ABSPATH, string $pdir = WP_PLUGIN_DIR, stri
  * @param string $mudir The MU Plugins Directory. Default: WPMU_PLUGIN_DIR
  *
  * @return string        An MD5 cache key to use.
- * @throws \JsonException If the directory listing can't be json encoded.
+ * @throws JsonException If the directory listing can't be json encoded.
  */
 function get_muloader_key(string $mudir = WPMU_PLUGIN_DIR): string
 {

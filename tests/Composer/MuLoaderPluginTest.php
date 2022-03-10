@@ -6,10 +6,12 @@ use Composer\Composer;
 use Composer\Config;
 use Composer\DependencyResolver\Operation\InstallOperation;
 use Composer\DependencyResolver\Operation\UpdateOperation;
+use Composer\Installer\BinaryInstaller;
 use Composer\Installer\InstallationManager;
-use Composer\Installer\InstallerInterface;
 use Composer\Installer\PackageEvent;
+use Composer\Installers\Installer;
 use Composer\IO\IOInterface;
+use Composer\IO\NullIO;
 use Composer\Package\Package;
 use Composer\Package\PackageInterface;
 use Composer\Script\Event;
@@ -30,7 +32,31 @@ class MuLoaderPluginTest extends TestCase
         array_map('unlink', glob(self::TMP_DIR . '/mu-plugins/*'));
     }
 
-    public function test_dump_require_file_dumps_expected_file(): void
+    public function testGetMuPath()
+    {
+        $composer = $this->mock_composer(
+            [
+                'installer-paths' => [
+                    '/mu-plugins/{$name}' => [
+                        "type:wordpress-muplugin"
+                    ]
+                ]
+            ]
+        );
+
+        $this->assertEquals(self::TMP_DIR, $composer->getConfig()->get('vendor-dir'));
+
+        $io = $this->getMockBuilder(IOInterface::class)->getMock();
+
+        $plugin = new MuLoaderPlugin();
+        $plugin->activate($composer, $io);
+
+        $muPath = $plugin->getMuPath($composer);
+
+        self::assertEquals(self::TMP_DIR . '/mu-plugins/', $muPath);
+    }
+
+    public function testDumpRequireFileDumpsExpectedFile(): void
     {
         $composer = $this->mock_composer(
             [
@@ -54,48 +80,7 @@ class MuLoaderPluginTest extends TestCase
         self::assertFileEquals(self::TOOLS_DIR . '/mu-plugins/mu-require.php', self::TMP_DIR . '/mu-plugins/mu-require.php');
     }
 
-    /**
-     * @param array $extraConfig Config for the extra section you want returned from getExtra()
-     *
-     * @return Composer|MockObject
-     */
-    private function mock_composer(array $extraConfig = [])
-    {
-        $package = $this->getMockBuilder(PackageInterface::class)->getMock();
-        $config = $this->getMockBuilder(Config::class)->getMock();
-        $installer = $this->getMockBuilder(InstallerInterface::class)->disableOriginalConstructor()->getMock();
-        $installationManager = $this->getMockBuilder(InstallationManager::class)->disableOriginalConstructor()->getMock();
-        $composer = $this->getMockBuilder(Composer::class)->getMock();
-
-        $package->method('getExtra')->willReturn($extraConfig);
-
-        $config->method('has')->with('vendor-dir')->willReturn(false);
-        $config->method('get')->with('vendor-dir')->willReturn(self::TMP_DIR);
-
-        $installer->method('getInstallPath')->willReturn(self::TMP_DIR . '/mu-plugins/');
-
-        $installationManager->method('getInstaller')->with('wordpress-muplugin')->willReturn($installer);
-
-        $composer->method('getPackage')->willReturn($package);
-        $composer->method('getConfig')->willReturn($config);
-        $composer->method('getInstallationManager')->willReturn($installationManager);
-
-        return $composer;
-    }
-
-    /**
-     * @param Composer $composer
-     * @return Event|MockObject
-     */
-    private function mock_event_for_dump_require_file(Composer $composer)
-    {
-        $event = $this->getMockBuilder(Event::class)->disableOriginalConstructor()->getMock();
-        $event->method('getComposer')->willReturn($composer);
-
-        return $event;
-    }
-
-    public function test_dump_require_file_dumps_expected_file_with_set_file(): void
+    public function testDumpRequireFileDumpsExpectedFileWithSetFile(): void
     {
         $muRequireFile = 'zzz-mu-require.php';
         $composer = $this->mock_composer(
@@ -121,7 +106,7 @@ class MuLoaderPluginTest extends TestCase
         self::assertFileEquals(self::TOOLS_DIR . '/mu-plugins/mu-require.php', self::TMP_DIR . '/mu-plugins/' . $muRequireFile);
     }
 
-    public function test_dump_require_file_does_not_dump_if_mu_require_file_set_to_false(): void
+    public function testDumpRequireFileDoesNotDumpIfMuRequireFileSetToFalse(): void
     {
         $composer = $this->mock_composer(
             [
@@ -145,7 +130,7 @@ class MuLoaderPluginTest extends TestCase
         self::assertFileDoesNotExist(self::TMP_DIR . '/mu-plugins/mu-require.php');
     }
 
-    public function test_override_plugin_types_sets_type_of_package_on_install(): void
+    public function testOverridePluginTypesSetsTypeOfPackageOnInstall(): void
     {
         $pluginName = 'vendor/wp-plugin';
 
@@ -179,22 +164,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    /**
-     * @param string $pluginName Name of plugin name to return for getName call
-     * @param string $pluginType Name of plugin type to return for getType call
-     *
-     * @return Package|MockObject
-     */
-    private function mock_package(string $pluginName, string $pluginType = 'wordpress-plugin')
-    {
-        $package = $this->getMockBuilder(Package::class)->disableOriginalConstructor()->getMock();
-        $package->method('getType')->willReturn($pluginType);
-        $package->method('getName')->willReturn($pluginName);
-
-        return $package;
-    }
-
-    public function test_override_plugin_types_sets_type_of_package_on_update(): void
+    public function testOverridePluginTypesSetsTypeOfPackageOnUpdate(): void
     {
         $pluginName = 'vendor/wp-plugin';
 
@@ -228,7 +198,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    public function test_override_plugin_types_sets_type_of_package_on_install_for_wpackagist_plugin(): void
+    public function testOverridePluginTypesSetsTypeOfPackageOnInstallForWpackagistPlugin(): void
     {
         $pluginName = 'wpackagist-plugin/wp-plugin';
 
@@ -262,7 +232,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    public function test_override_plugin_types_does_not_set_type_if_force_mu_is_empty(): void
+    public function testOverridePluginTypesDoesNotSetTypeIfForceMuIsEmpty(): void
     {
         $pluginName = 'vendor/wp-plugin';
 
@@ -294,7 +264,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    public function test_override_plugin_types_does_not_set_type_if_type_is_not_wordpress_plugin(): void
+    public function testOverridePluginTypesDoesNotSetTypeIfTypeIsNotWordpressPlugin(): void
     {
         $pluginName = 'vendor/wp-plugin';
 
@@ -326,7 +296,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    public function test_file_is_not_dumped_after_deactivation(): void
+    public function testFileIsNotDumpedAfterDeactivation(): void
     {
         $composer = $this->mock_composer(
             [
@@ -350,7 +320,7 @@ class MuLoaderPluginTest extends TestCase
         self::assertFileDoesNotExist(self::TMP_DIR . '/mu-plugins/mu-require.php');
     }
 
-    public function test_override_plugin_types_does_nothing_after_deactivation(): void
+    public function testOverridePluginTypesDoesNothingAfterDeactivation(): void
     {
         $pluginName = 'vendor/wp-plugin';
 
@@ -385,7 +355,7 @@ class MuLoaderPluginTest extends TestCase
         $plugin->overridePluginTypes($packageEvent);
     }
 
-    public function test_uninstall_removes_dumped_require_file(): void
+    public function testUninstallRemovesDumpedRequireFile(): void
     {
         $composer = $this->mock_composer(
             [
@@ -412,7 +382,7 @@ class MuLoaderPluginTest extends TestCase
         self::assertFileDoesNotExist(self::TMP_DIR . '/mu-plugins/mu-require.php');
     }
 
-    public function test_dump_require_file_overwrites_existing_file(): void
+    public function testDumpRequireFileOverwritesExistingFile(): void
     {
         $composer = $this->mock_composer(
             [
@@ -444,5 +414,62 @@ class MuLoaderPluginTest extends TestCase
         $updatedFileModifiedTime = filemtime(self::TMP_DIR . '/mu-plugins/mu-require.php');
 
         self::assertNotEquals($createdFileModifiedTime, $updatedFileModifiedTime);
+    }
+
+    /**
+     * @param array $extraConfig Config for the extra section you want returned from getExtra()
+     *
+     * @return Composer|MockObject
+     */
+    private function mock_composer(array $extraConfig = [])
+    {
+        $package = $this->getMockBuilder(PackageInterface::class)->getMock();
+        $config = $this->getMockBuilder(Config::class)->getMock();
+        $installationManager = $this->getMockBuilder(InstallationManager::class)->disableOriginalConstructor()->getMock();
+        $composer = $this->getMockBuilder(Composer::class)->getMock();
+
+        $package->method('getExtra')->willReturn($extraConfig);
+
+        $config->method('has')->with('vendor-dir')->willReturn(false);
+        $config->method('get')->with('vendor-dir')->willReturn(self::TMP_DIR);
+
+        $composer->method('getPackage')->willReturn($package);
+        $composer->method('getConfig')->willReturn($config);
+
+        $binaryInstaller = $this->getMockBuilder(BinaryInstaller::class)->disableOriginalConstructor()->getMock();
+
+        $installer = new Installer(new NullIO(), $composer, 'library', null, $binaryInstaller);
+        $installationManager->method('getInstaller')->with('wordpress-muplugin')->willReturn($installer);
+
+        $composer->method('getInstallationManager')->willReturn($installationManager);
+
+        return $composer;
+    }
+
+    /**
+     * @param Composer $composer
+     * @return Event|MockObject
+     */
+    private function mock_event_for_dump_require_file(Composer $composer)
+    {
+        $event = $this->getMockBuilder(Event::class)->disableOriginalConstructor()->getMock();
+        $event->method('getComposer')->willReturn($composer);
+
+        return $event;
+    }
+
+    /**
+     * @param string $pluginName Name of plugin name to return for getName call
+     * @param string $pluginType Name of plugin type to return for getType call
+     *
+     * @return Package|MockObject
+     */
+    private function mock_package(string $pluginName, string $pluginType = 'wordpress-plugin')
+    {
+        $package = $this->getMockBuilder(Package::class)->disableOriginalConstructor()->getMock();
+        $package->method('getType')->willReturn($pluginType);
+        $package->method('getName')->willReturn($pluginName);
+
+        return $package;
     }
 }

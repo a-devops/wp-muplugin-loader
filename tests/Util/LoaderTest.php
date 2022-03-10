@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 use LkWdwrd\MuPluginLoader\Util;
+use WP_Mock\Functions;
 
 class LoaderTest extends TestCase
 {
@@ -114,7 +115,7 @@ class LoaderTest extends TestCase
         // only plugins in directories should pass: rootplugin.php will go away.
         // WP will include root plugins in it's normal course.
         WP_Mock::userFunction('get_plugins', [
-            'args' => [ \WP_Mock\Functions::type('string') ],
+            'args' => [ Functions::type('string') ],
             'return' => [
                 'random/plugin1.php' => true,
                 'random/plugin2.php' => true,
