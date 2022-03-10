@@ -1,5 +1,80 @@
-include:
-  - template: Composer.gitlab-ci.yml
-  
-stages:          # List of stages for jobs, and their order of execution
-  - build
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      when: always
+    - if: '$CI_COMMIT_TAG =~ /^(?:\d+.){2}(?:\d+)$/'
+      when: always
+    - when: never
+
+stages: # List of stages for jobs, and their order of execution
+  - test
+  - publish
+
+.test:
+  variables:
+    COMPOSER_HOME: ${CI_PROJECT_DIR}/.composer
+    PHP_CS_FIXER_CACHE_FILE: ${CI_PROJECT_DIR}/.php-cs-fixer.cache
+  before_script:
+    - apt-get update -y && apt-get install -y git libzip-dev
+    - docker-php-ext-install zip
+    - |
+      echo "Installing composer..."
+      set -e
+      EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+      php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+      ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+      if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+        echo 'ERROR: Invalid installer checksum' >&2
+        rm composer-setup.php
+        exit 1
+      fi
+      php composer-setup.php --quiet
+      rm composer-setup.php
+      cp composer.phar /usr/local/bin/composer
+      chmod +x /usr/local/bin/composer
+    - composer self-update
+    - composer install
+  script:
+    - PHP_CS_FIXER_IGNORE_ENV=1 composer php-cs-fixer:test -- --cache-file=${PHP_CS_FIXER_CACHE_FILE}
+    - composer test
+  cache:
+    - key:
+        files:
+          - composer.lock
+      paths:
+        - $COMPOSER_HOME/cache/
+    - paths:
+        - $PHP_CS_FIXER_CACHE_FILE
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+
+test-with-php7.4:
+  extends: .test
+  image: php:7.4
+
+publish:
+  image: curlimages/curl:latest
+  stage: publish
+  variables:
+    URL: "$CI_SERVER_PROTOCOL://$CI_SERVER_HOST:$CI_SERVER_PORT/api/v4/projects/$CI_PROJECT_ID/packages/composer?job_token=$CI_JOB_TOKEN"
+  script:
+    - version=$([[ -z "$CI_COMMIT_TAG" ]] && echo "branch=$CI_COMMIT_REF_NAME" || echo "tag=$CI_COMMIT_TAG")
+    - insecure=$([ "$CI_SERVER_PROTOCOL" = "http" ] && echo "--insecure" || echo "")
+    - response=$(curl -s -w "\n%{http_code}" $insecure --data $version $URL)
+    - code=$(echo "$response" | tail -n 1)
+    - body=$(echo "$response" | head -n 1)
+    # Output state information
+    - |
+      if [ $code -eq 201 ]; then
+        echo "Package created - Code $code - $body";
+      else
+        echo "Could not create package - Code $code - $body";
+        exit 1;
+      fi
