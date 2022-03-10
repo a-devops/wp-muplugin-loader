@@ -9,3 +9,4 @@ vendor
 clover.xml
 .php-cs-fixer.cache
 tools/**/composer.lock
+composer.phar

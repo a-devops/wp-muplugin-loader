@@ -22,8 +22,10 @@ use Composer\Config;
 use Composer\DependencyResolver\Operation\UpdateOperation;
 use Composer\Installer\PackageEvent;
 use Composer\IO\IOInterface;
+use Composer\Package\Package;
 use Composer\Plugin\PluginInterface;
 use Composer\EventDispatcher\EventSubscriberInterface;
+use Composer\Script\Event;
 use LkWdwrd\MuPluginLoader\Util;
 
 /**
@@ -76,6 +78,11 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
     private $version = self::VERSION;
 
     /**
+     * @var bool
+     */
+    private $isActive = false;
+
+    /**
      * Stores the extras array and config object for later use.
      *
      * @param Composer    $composer The main Composer object.
@@ -88,6 +95,7 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
         $this->extras = $composer->getPackage()->getExtra();
         $this->config = $composer->getConfig();
         $this->version = self::VERSION;
+        $this->isActive = true;
     }
 
     /**
@@ -125,6 +133,10 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
      */
     public function overridePluginTypes(PackageEvent $event): void
     {
+        if (!$this->isActive) {
+            return;
+        }
+
         // Get the package being worked on.
         $operation = $event->getOperation();
         if ($operation instanceof UpdateOperation) {
@@ -160,11 +172,16 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
      * `mu-plugins` folder, which runs a `require_once` to load the main
      * `mu-loader.php` which can remain cozy back in the vendor directory.
      *
+     * @param Event $event
      * @return void
      */
-    public function dumpRequireFile(): void
+    public function dumpRequireFile(Event $event): void
     {
-        $muPath = $this->getMuPath();
+        if (!$this->isActive) {
+            return;
+        }
+
+        $muPath = $this->getMuPath($event->getComposer());
 
         if ($muPath === '') {
             return;
@@ -194,76 +211,17 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
     }
 
     /**
-     * Extracts the Must-Use Plugins directory from the extra definition.
-     *
-     * The Composer Installers plugins uses a specific extras definition to
-     * determine where Must-User plugins should be installed. This method makes
-     * sure that the type definition exists there, and if so, extracts the
-     * path, stripped of the `{name}` token, and returns it.
-     *
-     * If the lookup fails, this method returns false.
-     *
-     * @return string|bool Either the relative path or false.
-     */
-    protected function findMURelPath()
-    {
-        $path = false;
-        // Only keep going if we have install-paths in extras.
-        if (empty($this->extras['installer-paths']) || ! is_array($this->extras['installer-paths'])) {
-            return false;
-        }
-        // Find the array to the mu-plugin path.
-        foreach ($this->extras['installer-paths'] as $path => $types) {
-            if (! is_array($types)) {
-                continue;
-            }
-            if (! in_array('type:wordpress-muplugin', $types, true)) {
-                continue;
-            }
-            $path = str_replace('{$name}', '', $path);
-            break;
-        }
-
-        return $path;
-    }
-
-    /**
-     * Takes the relative Must-Use plugins path and send back the abslute path.
-     *
-     * @param string $relpath The relative `mu-plugins` path.
-     *
-     * @return string          The absolute `mu-plugins` path.
-     */
-    protected function resolveMURelPath(string $relpath): string
-    {
-        // Find the actual base path by removing the vendor-dir raw config path.
-        if ($this->config->has('vendor-dir')) {
-            $tag = $this->config->raw()['config']['vendor-dir'];
-        } else {
-            $tag = '';
-        }
-        $basepath = str_replace($tag, '', $this->config->get('vendor-dir'));
-
-        // Return the absolute path.
-        return $basepath . $relpath;
-    }
-
     /**
      * Find MU path.
      *
+     * @param Composer $composer
      * @return string
      */
-    private function getMuPath(): string
+    private function getMuPath(Composer $composer): string
     {
-        $muRelPath = $this->findMURelPath();
-
-        // If we didn't find a relative MU Plugins path, bail.
-        if (! $muRelPath) {
-            return '';
-        }
-
-        // Find the relative path from the mu-plugins dir to the mu-loader file.
-        return $this->resolveMURelPath($muRelPath);
+        $dummyPackage = new Package('dummy', '0', '0');
+        $dummyPackage->setType('wordpress-muplugin');
+        return $composer->getInstallationManager()->getInstaller('wordpress-muplugin')->getInstallPath($dummyPackage) . $this->getDirectorySeparator();
     }
 
     /**
@@ -291,7 +249,7 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
      *
      * @return string The directory separator character to use
      */
-    protected function getDirectorySeparator(): string
+    private function getDirectorySeparator(): string
     {
         $separator = DIRECTORY_SEPARATOR;
         if (! empty($this->extras['force-unix-separator'])) {
@@ -306,7 +264,7 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
      *
      * @return string
      */
-    public function getMuRequireGeneratedDocBlock(): string
+    private function getMuRequireGeneratedDocBlock(): string
     {
         $version = $this->version;
         return <<<DOCBLOCK
@@ -333,6 +291,7 @@ DOCBLOCK;
     {
         $this->extras = [];
         $this->config = new Config();
+        $this->isActive = false;
     }
 
     /**
@@ -343,7 +302,9 @@ DOCBLOCK;
      */
     public function uninstall(Composer $composer, IOInterface $io): void
     {
-        $muPath = $this->getMuPath();
+        $this->isActive = false;
+
+        $muPath = $this->getMuPath($composer);
         $muRequireFile = $this->getMuRequireFile();
 
         if (file_exists($muPath . $muRequireFile)) {
