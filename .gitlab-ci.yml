@@ -1,0 +1,5 @@
+include:
+  - template: Composer.gitlab-ci.yml
+  
+stages:          # List of stages for jobs, and their order of execution
+  - build
