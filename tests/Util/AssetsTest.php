@@ -4,6 +4,7 @@ namespace LkWdwrd\MuPluginLoader\Tests\Util;
 
 use PHPUnit\Framework\TestCase;
 use LkWdwrd\MuPluginLoader\Util;
+use RuntimeException;
 use WP_Mock;
 
 class AssetsTest extends TestCase
@@ -122,7 +123,7 @@ class AssetsTest extends TestCase
 
         // Create the directory we wish to symlink.
         if (! mkdir($symlink_directory) || ! is_dir($symlink_directory)) {
-            throw new \RuntimeException(sprintf('Directory "%s" was not created', $symlink_directory));
+            throw new RuntimeException(sprintf('Directory "%s" was not created', $symlink_directory));
         }
 
         /*
@@ -132,7 +133,7 @@ class AssetsTest extends TestCase
          * Follow up by confirming that the mirrored location is identified as a valid directory.
          */
         if (! symlink($symlink_directory, $plugin_directory) || ! is_dir($plugin_directory)) {
-            throw new \RuntimeException(sprintf('Unable to symlink the "%1$s" directory to "%2$s"', $symlink_directory, $plugin_directory));
+            throw new RuntimeException(sprintf('Unable to symlink the "%1$s" directory to "%2$s"', $symlink_directory, $plugin_directory));
         }
 
         $mu_plugins_url = WPMU_PLUGIN_URL . '/' . self::PLUGIN_NAME;

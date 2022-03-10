@@ -27,6 +27,7 @@ use Composer\Plugin\PluginInterface;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\Script\Event;
 use LkWdwrd\MuPluginLoader\Util;
+use RuntimeException;
 
 /**
  * Require the utility functions.
@@ -198,7 +199,7 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
             // Write the bootstrapping PHP file.
             if (! file_exists($muPath)) {
                 if (! mkdir($muPath, 0755, true) && ! is_dir($muPath)) {
-                    throw new \RuntimeException(sprintf('Directory "%s" was not created', $muPath));
+                    throw new RuntimeException(sprintf('Directory "%s" was not created', $muPath));
                 }
             }
 
@@ -217,11 +218,22 @@ class MuLoaderPlugin implements PluginInterface, EventSubscriberInterface
      * @param Composer $composer
      * @return string
      */
-    private function getMuPath(Composer $composer): string
+    public function getMuPath(Composer $composer): string
     {
         $dummyPackage = new Package('dummy', '0', '0');
         $dummyPackage->setType('wordpress-muplugin');
-        return $composer->getInstallationManager()->getInstaller('wordpress-muplugin')->getInstallPath($dummyPackage) . $this->getDirectorySeparator();
+        $relpath = dirname($composer->getInstallationManager()->getInstaller('wordpress-muplugin')->getInstallPath($dummyPackage)) . $this->getDirectorySeparator();
+
+        // Find the actual base path by removing the vendor-dir raw config path.
+        if ($this->config->has('vendor-dir')) {
+            $tag = $this->config->raw()['config']['vendor-dir'];
+        } else {
+            $tag = '';
+        }
+        $basepath = str_replace($tag, '', $this->config->get('vendor-dir'));
+
+        // Return the absolute path.
+        return $basepath . $relpath;
     }
 
     /**

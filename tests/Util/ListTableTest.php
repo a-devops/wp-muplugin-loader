@@ -13,7 +13,7 @@ class ListTableTest extends TestCase
         define('WPMU_PLUGIN_DIR', '/root');
         require_once __DIR__ . '/../tools/WP_Plugins_List_Table.php';
         require_once PROJECT . '/Util/list-table.php';
-        \WP_Mock::setUp();
+        WP_Mock::setUp();
         parent::setUp();
     }
 
@@ -22,7 +22,7 @@ class ListTableTest extends TestCase
      */
     public function tearDown(): void
     {
-        \WP_Mock::tearDown();
+        WP_Mock::tearDown();
         parent::tearDown();
     }
 
@@ -82,7 +82,7 @@ class ListTableTest extends TestCase
                     ]
                 ]
             ],
-            \WP_Plugins_List_Table::$received
+            WP_Plugins_List_Table::$received
         );
     }
 }

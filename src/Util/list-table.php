@@ -9,6 +9,8 @@
 
 namespace LkWdwrd\MuPluginLoader\Util;
 
+use WP_Plugins_List_Table;
+
 /**
  * Creates additional list-table to display all loaded Must-Use Plugins.
  *
@@ -19,12 +21,12 @@ namespace LkWdwrd\MuPluginLoader\Util;
  *
  * Each name is prefixed with '+  ' to help indicate it was added through the
  * Must-Use Plugins Loader.
- * @param  \WP_Plugins_List_Table|string $lt    The core list table class.
+ * @param  WP_Plugins_List_Table|string $lt    The core list table class.
  * @param  string                        $ps    The path separator to use.
  * @param  string                        $mudir The Must-Use Plugins directory.
  * @return void
  */
-function list_table($lt = \WP_Plugins_List_Table::class, $ps = DIRECTORY_SEPARATOR, $mudir = WPMU_PLUGIN_DIR): void
+function list_table($lt = WP_Plugins_List_Table::class, $ps = DIRECTORY_SEPARATOR, $mudir = WPMU_PLUGIN_DIR): void
 {
     $table = new $lt();
     $spacer = '+&nbsp;&nbsp;';
