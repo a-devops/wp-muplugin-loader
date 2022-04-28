@@ -13,7 +13,7 @@ use Composer\Installers\Installer;
 use Composer\IO\IOInterface;
 use Composer\IO\NullIO;
 use Composer\Package\Package;
-use Composer\Package\PackageInterface;
+use Composer\Package\RootPackageInterface;
 use Composer\Script\Event;
 use LkWdwrd\MuPluginLoader\Composer\MuLoaderPlugin;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -423,7 +423,7 @@ class MuLoaderPluginTest extends TestCase
      */
     private function mock_composer(array $extraConfig = [])
     {
-        $package = $this->getMockBuilder(PackageInterface::class)->getMock();
+        $package = $this->getMockBuilder(RootPackageInterface::class)->getMock();
         $config = $this->getMockBuilder(Config::class)->getMock();
         $installationManager = $this->getMockBuilder(InstallationManager::class)->disableOriginalConstructor()->getMock();
         $composer = $this->getMockBuilder(Composer::class)->getMock();
